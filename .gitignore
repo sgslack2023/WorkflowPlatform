@@ -26,7 +26,6 @@ staticfiles/
 # Node / React (Vite)
 # =========================
 node_modules/
-dist/
 
 # Logs
 npm-debug.log*
