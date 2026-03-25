@@ -130,7 +130,6 @@ psycopg2-binary==2.9.11
 puremagic==1.30
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
-pycairo==1.29.0
 pycparser==2.23
 pydantic==2.11.9
 pydantic-ai==1.0.10
