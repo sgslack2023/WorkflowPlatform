@@ -137,7 +137,23 @@ class TransformDefinitionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # 4. Return Top 100 rows
-            data = result_df.head(100).to_dict(orient='records')
+            # Replace NaN/Inf values with None for JSON compatibility
+            import numpy as np
+            import math
+            
+            result_df = result_df.head(100)
+            
+            # Convert to records and clean non-JSON-serializable values
+            data = result_df.to_dict(orient='records')
+            for row in data:
+                for key, value in row.items():
+                    if value is None:
+                        continue
+                    if isinstance(value, float):
+                        if math.isnan(value) or math.isinf(value):
+                            row[key] = None
+                    elif pd.isna(value):
+                        row[key] = None
             
             # Infer columns for the frontend table
             columns = []

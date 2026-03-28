@@ -80,8 +80,14 @@ class DynamicTableViewSet(viewsets.ModelViewSet):
         dt = serializer.save()
         service = DynamicTableService()
         try:
+            print(f"[DynamicTable] Syncing schema for table '{dt.name}' (physical: {dt.physical_table_name})")
+            print(f"[DynamicTable] Schema columns: {[c['name'] + ':' + c['type'] for c in dt.schema_definition.get('columns', [])]}")
             service.sync_schema(dt)
+            print(f"[DynamicTable] Schema sync completed successfully")
         except Exception as e:
+            print(f"[DynamicTable] Schema sync FAILED: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise ValueError(f"Failed to sync schema: {str(e)}")
 
     def perform_destroy(self, instance):
@@ -284,32 +290,53 @@ class DynamicTableViewSet(viewsets.ModelViewSet):
             # Sanitize column names
             df.columns = [re.sub(r'[^a-z0-9]+', '_', str(c).lower()).strip('_') if pd.notnull(c) else f"unnamed_{i}" for i, c in enumerate(df.columns)]
             
-            # If skip_errors is true, we need to filter the dataframe to only valid rows
-            # We'll use the same logic as validate_upload
-            if skip_errors:
-                schema_columns_def = dt.schema_definition.get('columns', [])
-                valid_mask = pd.Series([True] * len(df))
-                
-                # Simple type checking for filtering
-                for col_def in schema_columns_def:
-                    col_name = col_def['name']
-                    col_type = col_def['type']
-                    if col_name in df.columns:
-                        if col_type == 'integer':
-                            def is_int(x):
-                                try:
-                                    if pd.isnull(x) or x == '': return True
-                                    return float(x) == int(float(x))
-                                except: return False
+            # Clean and validate data based on schema
+            schema_columns_def = dt.schema_definition.get('columns', [])
+            valid_mask = pd.Series([True] * len(df))
+            
+            # Type checking and cleaning for ALL uploads (not just skip_errors)
+            for col_def in schema_columns_def:
+                col_name = col_def['name']
+                col_type = col_def['type']
+                if col_name in df.columns:
+                    if col_type == 'integer':
+                        def is_int(x):
+                            try:
+                                if pd.isnull(x) or x == '': return True
+                                return float(x) == int(float(x))
+                            except: return False
+                        if skip_errors:
                             valid_mask &= df[col_name].apply(is_int)
-                        elif col_type == 'float':
-                            def is_float(x):
-                                try:
-                                    if pd.isnull(x) or x == '': return True
-                                    float(x); return True
-                                except: return False
+                        else:
+                            # Convert to int, set invalid to None
+                            df[col_name] = pd.to_numeric(df[col_name], errors='coerce').astype('Int64')
+                    elif col_type == 'float':
+                        def is_float(x):
+                            try:
+                                if pd.isnull(x) or x == '': return True
+                                float(x); return True
+                            except: return False
+                        if skip_errors:
                             valid_mask &= df[col_name].apply(is_float)
-                
+                        else:
+                            # Convert to float, set invalid to None
+                            df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
+                    elif col_type in ['date', 'datetime']:
+                        # Clean datetime columns - convert invalid dates to None
+                        def is_valid_date(x):
+                            try:
+                                if pd.isnull(x) or x == '': return True
+                                pd.to_datetime(x)
+                                return True
+                            except: return False
+                        
+                        if skip_errors:
+                            valid_mask &= df[col_name].apply(is_valid_date)
+                        else:
+                            # Convert to datetime, set invalid to None
+                            df[col_name] = pd.to_datetime(df[col_name], errors='coerce')
+            
+            if skip_errors:
                 df = df[valid_mask]
 
             # Convert to serializable format
@@ -329,5 +356,26 @@ class DynamicTableViewSet(viewsets.ModelViewSet):
         try:
             service.clear_rows(dt)
             return Response({"status": "success"})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'], url_path='recreate-table')
+    def recreate_table(self, request, pk=None):
+        """Drop and recreate the physical table with current schema definition.
+        Use this when the physical table schema is out of sync with the definition."""
+        dt = self.get_object()
+        service = DynamicTableService()
+        try:
+            # Drop the old table if it exists
+            if dt.physical_table_name:
+                service.drop_table(dt)
+            
+            # Create fresh table with current schema
+            service.create_table(dt)
+            
+            return Response({
+                "status": "success", 
+                "message": f"Table recreated with schema: {[c['name'] + ' (' + c['type'] + ')' for c in dt.schema_definition.get('columns', [])]}"
+            })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

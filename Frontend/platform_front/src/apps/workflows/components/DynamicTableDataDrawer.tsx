@@ -123,6 +123,33 @@ const DynamicTableDataDrawer: React.FC<DynamicTableDataDrawerProps> = ({
         });
     };
 
+    const handleExportCsv = () => {
+        if (!rows || rows.length === 0 || columns.length === 0) return;
+        
+        const header = columns.map((c: { id: string; label: string; minWidth: number }) => c.id).join(',');
+        const csvRows = rows.map((row: any) =>
+            columns.map((c: { id: string; label: string; minWidth: number }) => {
+                const val = row[c.id];
+                const str = val === null || val === undefined ? '' : String(val);
+                // Escape commas, quotes, and newlines
+                return str.includes(',') || str.includes('"') || str.includes('\n')
+                    ? `"${str.replace(/"/g, '""')}"`
+                    : str;
+            }).join(',')
+        );
+        const csv = [header, ...csvRows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const filename = previewData 
+            ? `preview_${new Date().toISOString().slice(0, 10)}.csv`
+            : `${table?.name || 'data'}_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <>
             <input
@@ -202,7 +229,14 @@ const DynamicTableDataDrawer: React.FC<DynamicTableDataDrawerProps> = ({
                                 Upload Data
                             </SleekButton>
                         )}
-                        <SleekButton variant="light" size="small" startIcon={<Download size={14} />} sx={{ fontSize: '0.75rem' }}>
+                        <SleekButton 
+                            variant="light" 
+                            size="small" 
+                            startIcon={<Download size={14} />} 
+                            sx={{ fontSize: '0.75rem' }}
+                            onClick={handleExportCsv}
+                            disabled={!rows || rows.length === 0}
+                        >
                             Export CSV
                         </SleekButton>
                         <IconButton onClick={onClose} size="small">

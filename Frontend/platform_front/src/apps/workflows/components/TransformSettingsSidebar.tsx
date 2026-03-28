@@ -24,6 +24,11 @@ import {
     DistinctConfig,
     UnionConfig,
     SmartCubeConfig,
+    RenameConfig,
+    TrimConfig,
+    MeltConfig,
+    PivotConfig,
+    DropConfig,
     GenericSchemaForm,
     getConnectedSources,
     useAllSourceTables,
@@ -158,6 +163,11 @@ const TransformSettingsSidebar: React.FC<TransformSettingsSidebarProps> = ({
             case 'distinct': return <DistinctConfig {...configProps} />;
             case 'union': return <UnionConfig {...configProps} />;
             case 'agg.smart_cube': return <SmartCubeConfig {...configProps} />;
+            case 'rename': return <RenameConfig {...configProps} />;
+            case 'trim': return <TrimConfig {...configProps} />;
+            case 'melt': return <MeltConfig {...configProps} />;
+            case 'pivot': return <PivotConfig {...configProps} />;
+            case 'drop': return <DropConfig {...configProps} />;
             default:
                 return <GenericSchemaForm schema={node?.data?.input_schema || {}} params={params} onChange={handleFieldChange} />;
         }

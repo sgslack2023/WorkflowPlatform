@@ -17,6 +17,21 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Custom styles for edge selection
+const edgeStyles = `
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #6366f1 !important;
+    stroke-width: 3px !important;
+  }
+  .react-flow__edge:hover .react-flow__edge-path {
+    stroke: #818cf8 !important;
+    stroke-width: 2.5px !important;
+  }
+  .react-flow__edge.selected markerEnd {
+    fill: #6366f1 !important;
+  }
+`;
+
 import {
     Box,
     Typography,
@@ -508,6 +523,8 @@ const defaultEdgeOptions = {
     animated: true,
     style: { stroke: '#94a3b8', strokeWidth: 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8', width: 16, height: 16 },
+    selectable: true,
+    focusable: true,
 };
 
 const CreateFlowPage: React.FC = () => {
@@ -994,6 +1011,7 @@ const CreateFlowPage: React.FC = () => {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 32px)' }}>
+            <style>{edgeStyles}</style>
             {/* ─── React Flow Canvas (fills remaining space) ── */}
             <Box sx={{ flexGrow: 1, position: 'relative' }}>
                 <ReactFlow
@@ -1010,6 +1028,7 @@ const CreateFlowPage: React.FC = () => {
                     defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
                     snapToGrid
                     snapGrid={[16, 16]}
+                    deleteKeyCode={['Backspace', 'Delete']}
                     style={{ backgroundColor: '#fafbfc' }}
                 >
                     <Background color="#e2e8f0" gap={20} size={1} />

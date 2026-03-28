@@ -1,0 +1,59 @@
+import React from 'react';
+import { Box, Stack, Typography, Chip } from '@mui/material';
+import {
+    TableSelector,
+    ColumnSelector,
+    sectionTitle,
+    chipStyle,
+    type TransformConfigProps,
+} from './shared';
+
+const TrimConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTables, isLoading }) => {
+    const selectedTable = allTables.find(t => t.id === params.source_table);
+    const columns = selectedTable?.columns || [];
+
+    return (
+        <Stack spacing={3}>
+            <TableSelector
+                label="Source Table"
+                tables={allTables}
+                value={params.source_table || ''}
+                onChange={(id) => onChange('source_table', id)}
+                isLoading={isLoading}
+            />
+
+            {selectedTable && (
+                <>
+                    <Box>
+                        <Typography sx={sectionTitle}>Trim Type</Typography>
+                        <Stack direction="row" gap={1} flexWrap="wrap">
+                            {[
+                                { value: 'both', label: 'Both Sides' },
+                                { value: 'leading', label: 'Leading Only' },
+                                { value: 'trailing', label: 'Trailing Only' }
+                            ].map(option => (
+                                <Chip
+                                    key={option.value}
+                                    label={option.label}
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => onChange('trim_type', option.value)}
+                                    sx={chipStyle(params.trim_type === option.value, '#6366f1')}
+                                />
+                            ))}
+                        </Stack>
+                    </Box>
+
+                    <ColumnSelector
+                        label="Columns to Trim (leave empty for all text columns)"
+                        columns={columns}
+                        value={params.columns || []}
+                        onChange={(cols) => onChange('columns', cols)}
+                    />
+                </>
+            )}
+        </Stack>
+    );
+};
+
+export default TrimConfig;

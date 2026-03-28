@@ -359,7 +359,20 @@ class TransformNodeExecutor(BaseNodeExecutor):
         # 3. Build input DataFrames
         # Some transforms (like Smart Cube) expect multiple inputs matching specific Table IDs
         # Others (Filter, Calculate) use a single source_table field
+        # Join uses left_table and right_table
         input_tables = algo_parameters.get('input_tables') or algo_parameters.get('_input_table_ids') or algo_parameters.get('source_table')
+        
+        # Handle Join transform which uses left_table and right_table
+        left_table = algo_parameters.get('left_table')
+        right_table = algo_parameters.get('right_table')
+        if left_table and right_table:
+            input_tables = [left_table, right_table]
+        
+        # Handle Union transform which uses table_a and table_b
+        table_a = algo_parameters.get('table_a')
+        table_b = algo_parameters.get('table_b')
+        if table_a and table_b:
+            input_tables = [table_a, table_b]
         
         # Ensure we are working with a list of IDs
         if input_tables and not isinstance(input_tables, list):
@@ -436,9 +449,15 @@ class TransformNodeExecutor(BaseNodeExecutor):
         # 4. Execute the real transform with configured parameters
         try:
             result_df = transform_instance.execute(input_dfs, algo_parameters)
+            
+            # Replace NaN/Inf values with None for JSON compatibility
+            import numpy as np
+            result_df = result_df.replace([np.inf, -np.inf], None)
+            result_df = result_df.where(pd.notnull(result_df), None)
+            
             # Increased limit to 10000 to support larger datasets
             data = result_df.head(10000).to_dict(orient='records')
-            
+
             columns = []
             for col_name, dtype in result_df.dtypes.items():
                 columns.append({"name": str(col_name), "type": str(dtype)})

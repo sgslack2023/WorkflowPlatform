@@ -1,5 +1,6 @@
 import uuid
 import re
+import pandas as pd
 from django.db import connections, transaction
 from .models import DynamicTable, DynamicTableHistory
 
@@ -109,7 +110,10 @@ class DynamicTableService:
         3. Drop old table
         4. Rename new table to old table name
         """
+        print(f"  [sync_schema] Starting sync for '{dynamic_table.name}'")
+        
         if not dynamic_table.physical_table_name:
+            print(f"  [sync_schema] No physical table exists, creating new one")
             return self.create_table(dynamic_table)
             
         old_table = dynamic_table.physical_table_name
@@ -153,6 +157,8 @@ class DynamicTableService:
             new_columns.append(col_name)
             
         create_sql = f"CREATE TABLE {new_table_temp} ({', '.join(columns_sql)});"
+        print(f"  [sync_schema] Creating temp table: {new_table_temp}")
+        print(f"  [sync_schema] New columns: {new_columns}")
         
         # Determine common columns for copying
         # We need to query the existing table's columns
@@ -161,6 +167,7 @@ class DynamicTableService:
             cursor.execute(f"DROP TABLE IF EXISTS {new_table_temp}")
             # Create new table
             cursor.execute(create_sql)
+            print(f"  [sync_schema] Temp table created")
             
             # Get existing columns
             # This is vendor specific. Using a generic try-catch approach or specific PRAGMA for SQLite
@@ -176,9 +183,61 @@ class DynamicTableService:
             common_cols = [col for col in new_columns if col in existing_cols]
             
             if common_cols:
+                # Build type map for conversions
+                type_map = {c['name']: c['type'] for c in schema.get('columns', [])}
+                
+                # Get old column types for comparison
+                old_type_map = {}
+                if self.connection.vendor == 'sqlite':
+                    for row in existing_cols_info:
+                        old_type_map[row[1]] = row[2].upper()  # column name -> type
+                else:
+                    cursor.execute(f"""
+                        SELECT column_name, data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = '{old_table}'
+                    """)
+                    for row in cursor.fetchall():
+                        old_type_map[row[0]] = row[1].upper()
+                
+                # Build SELECT with type casting for changed columns
+                select_parts = []
+                for col in common_cols:
+                    new_type = type_map.get(col, 'text')
+                    old_db_type = old_type_map.get(col, '')
+                    
+                    # Check if type conversion is needed
+                    needs_cast = False
+                    cast_to = None
+                    
+                    if new_type in ('datetime', 'date'):
+                        # If old type was numeric/integer, we can't convert - set to NULL
+                        if any(t in old_db_type for t in ['INT', 'NUMERIC', 'DOUBLE', 'FLOAT', 'REAL']):
+                            # Old data was numeric, new is datetime - can't convert, use NULL
+                            select_parts.append(f'NULL AS "{col}"')
+                            continue
+                    elif new_type == 'integer':
+                        if any(t in old_db_type for t in ['TIMESTAMP', 'DATE', 'TIME']):
+                            # Old data was datetime, new is integer - can't convert, use NULL
+                            select_parts.append(f'NULL AS "{col}"')
+                            continue
+                    elif new_type in ('float', 'number'):
+                        if any(t in old_db_type for t in ['TIMESTAMP', 'DATE', 'TIME']):
+                            select_parts.append(f'NULL AS "{col}"')
+                            continue
+                    
+                    # Default: just copy the column
+                    select_parts.append(f'"{col}"')
+                
                 cols_str = ", ".join([f'"{col}"' for col in common_cols])
-                copy_sql = f"INSERT INTO {new_table_temp} ({cols_str}) SELECT {cols_str} FROM {old_table}"
-                cursor.execute(copy_sql)
+                select_str = ", ".join(select_parts)
+                copy_sql = f"INSERT INTO {new_table_temp} ({cols_str}) SELECT {select_str} FROM {old_table}"
+                
+                try:
+                    cursor.execute(copy_sql)
+                except Exception as e:
+                    print(f"[Schema Sync] Data copy failed: {e}. Proceeding with empty table.")
+                    # If copy fails, just continue with empty table
                 
             # Drop old and rename
             if self.connection.vendor == 'postgresql':
@@ -236,7 +295,12 @@ class DynamicTableService:
 
         # Determine valid columns from schema again after potential sync
         schema = dynamic_table.schema_definition
-        schema_cols = [c['name'] for c in schema.get('columns', [])]
+        schema_cols_def = schema.get('columns', [])
+        schema_cols = [c['name'] for c in schema_cols_def]
+        
+        # Build type map for conversion
+        type_map = {c['name']: c['type'] for c in schema_cols_def}
+        
         data_cols = list(rows[0].keys())
         
         # Intersection of schema columns and data columns, excluding ID
@@ -252,9 +316,39 @@ class DynamicTableService:
         
         sql = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
         
+        def convert_value(val, col_type):
+            """Convert value to match expected column type"""
+            if val is None or val == '' or (isinstance(val, float) and pd.isna(val)):
+                return None
+            
+            try:
+                if col_type == 'integer':
+                    # Try to convert to int, return None if fails
+                    return int(float(val))
+                elif col_type in ('float', 'number'):
+                    return float(val)
+                elif col_type == 'boolean':
+                    if isinstance(val, bool):
+                        return val
+                    return str(val).lower().strip() in ['true', '1', 'yes', 't', 'y']
+                elif col_type in ('date', 'datetime'):
+                    # Parse datetime and return in proper format
+                    from datetime import datetime
+                    if isinstance(val, datetime):
+                        return val
+                    parsed = pd.to_datetime(val, errors='coerce')
+                    if pd.isna(parsed):
+                        return None
+                    return parsed.to_pydatetime()
+                else:
+                    # text, string, json etc - return as string
+                    return str(val) if val is not None else None
+            except (ValueError, TypeError):
+                return None
+        
         with self.connection.cursor() as cursor:
             for row in rows:
-                values = [row.get(col) for col in columns]
+                values = [convert_value(row.get(col), type_map.get(col, 'text')) for col in columns]
                 cursor.execute(sql, values)
             
             # If postgres, we might need to sync the ID sequence if someone DID try to insert IDs

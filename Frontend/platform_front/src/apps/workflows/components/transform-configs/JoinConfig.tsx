@@ -3,7 +3,7 @@ import { Box, Stack, Chip, Typography, alpha } from '@mui/material';
 import { Merge } from 'lucide-react';
 import {
     TableSelector,
-    SingleColumnSelector,
+    ColumnSelector,
     chipStyle,
     sectionTitle,
     type TransformConfigProps,
@@ -12,6 +12,10 @@ import {
 const JoinConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTables, isLoading }) => {
     const leftTable = allTables.find(t => t.id === params.left_table);
     const rightTable = allTables.find(t => t.id === params.right_table);
+
+    // Support both single column (legacy) and multi-column joins
+    const leftOn = Array.isArray(params.left_on) ? params.left_on : (params.left_on ? [params.left_on] : []);
+    const rightOn = Array.isArray(params.right_on) ? params.right_on : (params.right_on ? [params.right_on] : []);
 
     return (
         <Stack spacing={3}>
@@ -53,18 +57,29 @@ const JoinConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTable
             {/* Column selectors — only show for non-cross joins */}
             {params.how !== 'cross' && (
                 <>
-                    <SingleColumnSelector
-                        label="Left Join Column"
+                    <ColumnSelector
+                        label="Left Join Columns"
                         columns={leftTable?.columns || []}
-                        value={params.left_on || ''}
-                        onChange={(col) => onChange('left_on', col)}
+                        value={leftOn}
+                        onChange={(cols) => onChange('left_on', cols)}
                     />
-                    <SingleColumnSelector
-                        label="Right Join Column"
+                    <ColumnSelector
+                        label="Right Join Columns"
                         columns={rightTable?.columns || []}
-                        value={params.right_on || ''}
-                        onChange={(col) => onChange('right_on', col)}
+                        value={rightOn}
+                        onChange={(cols) => onChange('right_on', cols)}
                     />
+                    {leftOn.length !== rightOn.length && leftOn.length > 0 && rightOn.length > 0 && (
+                        <Box sx={{
+                            p: 1.5, borderRadius: '8px',
+                            bgcolor: alpha('#f59e0b', 0.08),
+                            border: '1px solid', borderColor: alpha('#f59e0b', 0.3),
+                        }}>
+                            <Typography sx={{ fontSize: '0.7rem', color: '#92400e', fontWeight: 600 }}>
+                                Warning: Left and right join columns should have the same count
+                            </Typography>
+                        </Box>
+                    )}
                 </>
             )}
 
@@ -80,9 +95,9 @@ const JoinConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTable
                         <Merge size={16} color="#6366f1" />
                         <Chip label={rightTable.name} size="small" sx={{ fontSize: '0.68rem', fontWeight: 700 }} />
                     </Stack>
-                    {params.how !== 'cross' && params.left_on && params.right_on && (
+                    {params.how !== 'cross' && leftOn.length > 0 && rightOn.length > 0 && (
                         <Typography sx={{ fontSize: '0.65rem', color: '#64748b', textAlign: 'center', mt: 1 }}>
-                            ON {leftTable.name}.{params.left_on} = {rightTable.name}.{params.right_on}
+                            ON {leftOn.map((col: string, i: number) => `${leftTable.name}.${col} = ${rightTable.name}.${rightOn[i] || '?'}`).join(' AND ')}
                         </Typography>
                     )}
                 </Box>
