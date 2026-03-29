@@ -28,7 +28,7 @@ import {
     TrimConfig,
     MeltConfig,
     PivotConfig,
-    DropConfig,
+    SelectColumnsConfig,
     GenericSchemaForm,
     getConnectedSources,
     useAllSourceTables,
@@ -167,7 +167,7 @@ const TransformSettingsSidebar: React.FC<TransformSettingsSidebarProps> = ({
             case 'trim': return <TrimConfig {...configProps} />;
             case 'melt': return <MeltConfig {...configProps} />;
             case 'pivot': return <PivotConfig {...configProps} />;
-            case 'drop': return <DropConfig {...configProps} />;
+            case 'select_columns': return <SelectColumnsConfig {...configProps} />;
             default:
                 return <GenericSchemaForm schema={node?.data?.input_schema || {}} params={params} onChange={handleFieldChange} />;
         }

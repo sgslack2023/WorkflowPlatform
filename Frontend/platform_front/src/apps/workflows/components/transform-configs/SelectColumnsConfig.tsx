@@ -6,7 +6,7 @@ import {
     type TransformConfigProps,
 } from './shared';
 
-const DropConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTables, isLoading }) => {
+const SelectColumnsConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTables, isLoading }) => {
     const selectedTable = allTables.find(t => t.id === params.source_table);
     const columns = selectedTable?.columns || [];
 
@@ -22,7 +22,7 @@ const DropConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTable
 
             {selectedTable && (
                 <ColumnSelector
-                    label="Columns to Drop"
+                    label="Columns to Keep"
                     columns={columns}
                     value={params.columns || []}
                     onChange={(cols) => onChange('columns', cols)}
@@ -32,4 +32,4 @@ const DropConfig: React.FC<TransformConfigProps> = ({ params, onChange, allTable
     );
 };
 
-export default DropConfig;
+export default SelectColumnsConfig;

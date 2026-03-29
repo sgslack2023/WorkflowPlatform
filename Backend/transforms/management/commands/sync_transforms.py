@@ -14,7 +14,7 @@ class Command(BaseCommand):
         
         library_path = os.path.join(settings.BASE_DIR, 'transforms', 'library')
         
-        # Track synced keys to cleanup old ones later if needed
+        # Track synced keys to cleanup old ones
         synced_keys = []
         
         for filename in os.listdir(library_path):
@@ -32,6 +32,16 @@ class Command(BaseCommand):
                             synced_keys.append(obj.key)
                 except Exception as e:
                     self.stderr.write(f"Failed to load module {module_name}: {str(e)}")
+
+        # Remove old auto-discovered transforms that no longer exist in the library
+        deleted_count, _ = TransformDefinition.objects.filter(
+            auto_discovered=True
+        ).exclude(
+            key__in=synced_keys
+        ).delete()
+        
+        if deleted_count > 0:
+            self.stdout.write(f"Removed {deleted_count} obsolete transform(s).")
 
         self.stdout.write(self.style.SUCCESS(f"Successfully synced {len(synced_keys)} transformations."))
 

@@ -10,42 +10,33 @@ class AppDefinitionViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        print(f"DEBUG: get_queryset for user {user}")
+        # Superusers can see all apps
+        if user.is_superuser:
+            return self.queryset.all()
         return self.queryset.filter(organization__memberships__user=user).distinct()
 
-    def create(self, request, *args, **kwargs):
-        print(f"DEBUG: Entering create method. User: {request.user}")
-        print(f"DEBUG: Request data: {request.data}")
-        return super().create(request, *args, **kwargs)
-
     def perform_create(self, serializer):
-        try:
-            user = self.request.user
-            print(f"DEBUG: perform_create for user {user}")
-            # Default to the first organization the user is a member of if not explicitly provided
-            org_id = self.request.data.get('organization')
-            print(f"DEBUG: org_id from data: {org_id}")
-            
-            if not org_id:
-                from core.models import Organization
+        user = self.request.user
+        org_id = self.request.data.get('organization')
+        
+        if not org_id:
+            from core.models import Organization
+            # For superusers, use the first organization or create without org
+            if user.is_superuser:
+                org = Organization.objects.first()
+                if org:
+                    serializer.save(organization=org)
+                else:
+                    # Superuser can create app without organization
+                    serializer.save()
+            else:
                 org = Organization.objects.filter(memberships__user=user).first()
-                print(f"DEBUG: org found: {org}")
                 if not org:
                     from rest_framework.exceptions import ValidationError
-                    print("DEBUG: No org found, raising ValidationError")
                     raise ValidationError({"detail": "User is not a member of any organization. Cannot create application."})
-                
-                print(f"DEBUG: Saving serializer with org {org}")
                 serializer.save(organization=org)
-            else:
-                print("DEBUG: Saving serializer with provided org_id")
-                serializer.save()
-            print("DEBUG: Save successful")
-        except Exception as e:
-            import traceback
-            print(f"DEBUG: EXCEPTION in perform_create: {str(e)}")
-            traceback.print_exc()
-            raise e
+        else:
+            serializer.save()
 
 class AppRunViewSet(viewsets.ModelViewSet):
     queryset = AppRun.objects.all()
@@ -53,4 +44,8 @@ class AppRunViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(app__organization__memberships__user=self.request.user)
+        user = self.request.user
+        # Superusers can see all app runs
+        if user.is_superuser:
+            return self.queryset.all()
+        return self.queryset.filter(app__organization__memberships__user=user)

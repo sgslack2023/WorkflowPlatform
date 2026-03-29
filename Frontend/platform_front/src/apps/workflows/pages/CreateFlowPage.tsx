@@ -71,7 +71,8 @@ import {
     Copy,
     Rocket,
     Play,
-    Save
+    Save,
+    Columns
 } from 'lucide-react';
 import SleekButton from '../../../components/SleekButton';
 import SleekModal from '../../../components/SleekModal';
@@ -270,6 +271,7 @@ const TRANSFORM_ICONS: Record<string, any> = {
     distinct: Copy,
     union: Database,
     'agg.smart_cube': Layers,
+    select_columns: Columns,
 };
 
 const TRANSFORM_COLORS: Record<string, string> = {

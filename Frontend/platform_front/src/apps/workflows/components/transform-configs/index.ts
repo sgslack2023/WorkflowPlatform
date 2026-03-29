@@ -10,7 +10,7 @@ export { default as RenameConfig } from './RenameConfig';
 export { default as TrimConfig } from './TrimConfig';
 export { default as MeltConfig } from './MeltConfig';
 export { default as PivotConfig } from './PivotConfig';
-export { default as DropConfig } from './DropConfig';
+export { default as SelectColumnsConfig } from './SelectColumnsConfig';
 export { default as GenericSchemaForm } from './GenericSchemaForm';
 export type { TransformConfigProps, TableInfo, ConnectedSource } from './shared';
 export { getConnectedSources, useAllSourceTables } from './shared';

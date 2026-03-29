@@ -2,10 +2,10 @@ import pandas as pd
 from .base import BaseTransform
 from typing import Dict, Any, List
 
-class DropColumnsTransform(BaseTransform):
-    key = "drop"
-    name = "Drop Columns"
-    description = "Remove selected columns from the table."
+class SelectColumnsTransform(BaseTransform):
+    key = "select_columns"
+    name = "Select Columns"
+    description = "Keep only the selected columns from the table."
     
     input_schema = {
         "type": "object",
@@ -13,7 +13,7 @@ class DropColumnsTransform(BaseTransform):
             "columns": {
                 "type": "array",
                 "items": {"type": "string"},
-                "label": "Columns to Drop"
+                "label": "Columns to Keep"
             }
         },
         "required": ["columns"]
@@ -24,19 +24,19 @@ class DropColumnsTransform(BaseTransform):
             raise ValueError("No input data provided.")
         
         df = inputs[0]
-        columns_to_drop = params.get("columns", [])
+        columns_to_keep = params.get("columns", [])
         
-        if not columns_to_drop:
+        if not columns_to_keep:
             return df
         
         # Filter to only existing columns
-        existing_cols = [c for c in columns_to_drop if c in df.columns]
+        existing_cols = [c for c in columns_to_keep if c in df.columns]
         
         if not existing_cols:
             return df
         
-        # Build EXCLUDE clause
-        exclude_list = ", ".join(existing_cols)
-        query = f"SELECT * EXCLUDE ({exclude_list}) FROM df"
+        # Select only the specified columns
+        select_list = ", ".join(f'"{c}"' for c in existing_cols)
+        query = f"SELECT {select_list} FROM df"
         
         return self.run_query(query, {"df": df})

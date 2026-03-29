@@ -429,32 +429,18 @@ export function useAllSourceTables(sources: ConnectedSource[], nodes: Node[], ed
                             sourceLabel: src.label,
                         });
                     }
-                } else if (transformKey === 'drop') {
-                    // Drop removes selected columns
-                    const dropTableId = src.node.data?.algo_parameters?.source_table;
-                    const droppedCols = src.node.data?.algo_parameters?.columns || [];
-                    const tableName = findOriginalTableName(dropTableId, nodes, edges, dsTables || [], transformTables || []) || 'Data';
+                } else if (transformKey === 'select_columns') {
+                    // Select Columns keeps only the selected columns
+                    const selectTableId = src.node.data?.algo_parameters?.source_table;
+                    const selectedCols = src.node.data?.algo_parameters?.columns || [];
+                    const tableName = findOriginalTableName(selectTableId, nodes, edges, dsTables || [], transformTables || []) || 'Data';
                     
-                    // Get source columns and filter out dropped ones
-                    const sourceTable = (transformTables || []).find((t: any) => t.id === dropTableId) ||
-                                        (dsTables || []).find((t: any) => t.id === dropTableId);
-                    
-                    let cols: { name: string; type: string }[] = [];
-                    if (sourceTable) {
-                        cols = (sourceTable.schema_definition?.columns || [])
-                            .filter((c: any) => !droppedCols.includes(c.name))
-                            .map((c: any) => ({ name: c.name, type: c.type }));
-                    } else {
-                        // If source is another transform, try to get columns from result
-                        const upstreamResult = result.find(r => r.id === dropTableId);
-                        if (upstreamResult) {
-                            cols = upstreamResult.columns.filter(c => !droppedCols.includes(c.name));
-                        }
-                    }
+                    // Output is exactly the selected columns
+                    const cols = selectedCols.map((colName: string) => ({ name: colName, type: 'VARCHAR' }));
                     
                     result.push({
                         id: src.node.id,
-                        name: `${tableName} (Dropped ${droppedCols.length} cols)`,
+                        name: `${tableName} (${selectedCols.length} cols)`,
                         columns: cols.length > 0 ? cols : [{ name: 'data', type: 'VARCHAR' }],
                         sourceLabel: src.label,
                     });
